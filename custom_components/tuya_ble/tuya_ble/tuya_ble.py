@@ -754,10 +754,21 @@ class TuyaBLEDevice:
                     try:
                         notify_char = CHARACTERISTIC_NOTIFY
                         if not self._client.services.get_characteristic(notify_char):
+                            _LOGGER.debug(
+                                "%s: Standard notification characteristic not found, searching...",
+                                self.address,
+                            )
                             for service in self._client.services:
+                                if service.uuid.startswith("000018"):
+                                    continue
                                 for char in service.characteristics:
                                     if "notify" in char.properties:
                                         notify_char = char.uuid
+                                        _LOGGER.debug(
+                                            "%s: Found notification characteristic: %s",
+                                            self.address,
+                                            notify_char,
+                                        )
                                         break
                                 if notify_char != CHARACTERISTIC_NOTIFY:
                                     break
@@ -1112,9 +1123,24 @@ class TuyaBLEDevice:
         for packet in packets:
             if self._client:
                 try:
+                    write_char = CHARACTERISTIC_WRITE
+                    if not self._client.services.get_characteristic(write_char):
+                        for service in self._client.services:
+                            if service.uuid.startswith("000018"):
+                                continue
+                            for char in service.characteristics:
+                                if (
+                                    "write" in char.properties
+                                    or "write-without-response" in char.properties
+                                ):
+                                    write_char = char.uuid
+                                    break
+                            if write_char != CHARACTERISTIC_WRITE:
+                                break
+
                     # _LOGGER.debug("%s: Sending packet: %s", self.address, packet.hex())
                     await self._client.write_gatt_char(
-                        CHARACTERISTIC_WRITE,
+                        write_char,
                         packet,
                         False,
                     )
