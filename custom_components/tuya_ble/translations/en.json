@@ -167,6 +167,14 @@
             },
             "temperature_unit": {
                 "name": "Temperature unit"
+            },
+            "mode": {
+                "name": "Mode",
+                "state": {
+                    "standby": "Standby",
+                    "random": "Random",
+                    "smart": "Smart"
+                }
             }
         },
         "sensor": {
@@ -233,6 +241,19 @@
             },
             "signal_strength": {
                 "name": "Signal strength"
+            },
+            "status": {
+                "name": "Status",
+                "state": {
+                    "standby": "Standby",
+                    "paused": "Paused",
+                    "sleep": "Sleep",
+                    "smart_clean": "Smart Clean",
+                    "spot_clean": "Spot Clean",
+                    "goto_charge": "Going to charge",
+                    "charging": "Charging",
+                    "charge_done": "Charge done"
+                }
             },
             "temperature": {
                 "name": "Temperature"
@@ -323,6 +344,9 @@
             "switch": {
                 "name": "Switch"
             },
+            "switch_go": {
+                "name": "Start/Stop"
+            },
             "water_scale_proof": {
                 "name": "Anti-scale"
             },
@@ -368,4 +392,3 @@
         }
     }
 }
-
