@@ -426,6 +426,14 @@ class TuyaBLEDevice:
         # raw_product_key: bytes | None = None
         raw_uuid: bytes | None = None
         if self._advertisement_data:
+            _LOGGER.debug(
+                "%s: Advertisement data: local_name=%s, manufacturer_data=%s, service_data=%s, service_uuids=%s",
+                self.address,
+                self._advertisement_data.local_name,
+                self._advertisement_data.manufacturer_data,
+                self._advertisement_data.service_data,
+                self._advertisement_data.service_uuids,
+            )
             if self._advertisement_data.service_data:
                 service_data = self._advertisement_data.service_data.get(
                     SERVICE_UUID_TEMP
@@ -770,6 +778,12 @@ class TuyaBLEDevice:
                 if client and client.is_connected:
                     _LOGGER.debug("%s: Connected; RSSI: %s", self.address, self.rssi)
                     self._client = client
+                    _LOGGER.debug("%s: Services discovered:", self.address)
+                    for service in self._client.services:
+                        _LOGGER.debug("%s: Service: %s", self.address, service)
+                        for char in service.characteristics:
+                            _LOGGER.debug("%s: - Characteristic: %s, Properties: %s", self.address, char, char.properties)
+
                     try:
                         self._notify_char = CHARACTERISTIC_NOTIFY
                         self._write_char = CHARACTERISTIC_WRITE
@@ -985,13 +999,16 @@ class TuyaBLEDevice:
         encrypted = security_flag + iv + cipher.encrypt(raw)
 
         _LOGGER.debug(
-            "%s: Built packets for #%s %s: length=%s, protocol_version=%s, security_flag=%s",
+            "%s: Built packets for #%s %s: length=%s, protocol_version=%s, security_flag=%s, key=%s, iv=%s, raw=%s",
             self.address,
             seq_num,
             code.name,
             len(encrypted),
             self._protocol_version,
             security_flag.hex(),
+            key.hex(),
+            iv.hex(),
+            raw.hex(),
         )
 
         command = []
