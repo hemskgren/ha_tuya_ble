@@ -320,6 +320,8 @@ class TuyaBLEDevice:
 
         self._function = {}
         self._status_range = {}
+        self._notify_char: str | None = None
+        self._write_char: str | None = None
 
     def set_ble_device_and_advertisement_data(
         self, ble_device: BLEDevice, advertisement_data: AdvertisementData
@@ -327,11 +329,12 @@ class TuyaBLEDevice:
         """Set the ble device."""
         self._ble_device = ble_device
         self._advertisement_data = advertisement_data
+        self._decode_advertisement_data()
 
     async def initialize(self) -> None:
         _LOGGER.debug("%s: Initializing", self.address)
-        if await self._update_device_info():
-            self._decode_advertisement_data()
+        self._decode_advertisement_data()
+        await self._update_device_info()
 
     def _build_pairing_request(self) -> bytes:
         result = bytearray()
@@ -365,8 +368,18 @@ class TuyaBLEDevice:
                     self._ble_device.address, False
                 )
             if self._device_info:
-                self._local_key = self._device_info.local_key[:6].encode()
+                if self._protocol_version >= 3:
+                    self._local_key = self._device_info.local_key.encode()
+                else:
+                    self._local_key = self._device_info.local_key[:6].encode()
                 self._login_key = hashlib.md5(self._local_key).digest()
+
+                _LOGGER.debug(
+                    "%s: Using protocol version %s, local_key length %s",
+                    self.address,
+                    self._protocol_version,
+                    len(self._local_key),
+                )
 
                 self.append_functions(
                     self._device_info.functions, self._device_info.status_range
@@ -431,6 +444,11 @@ class TuyaBLEDevice:
                 if manufacturer_data and len(manufacturer_data) > 6:
                     self._is_bound = (manufacturer_data[0] & 0x80) != 0
                     self._protocol_version = manufacturer_data[1]
+                    _LOGGER.debug(
+                        "%s: Decoded protocol version %s from manufacturer data",
+                        self.address,
+                        self._protocol_version,
+                    )
                     raw_uuid = manufacturer_data[6:]
                     if raw_product_id:
                         key = hashlib.md5(raw_product_id).digest()
@@ -684,7 +702,8 @@ class TuyaBLEDevice:
             self._expected_disconnect = True
             self._client = None
             if client and client.is_connected:
-                await client.stop_notify(CHARACTERISTIC_NOTIFY)
+                if self._notify_char:
+                    await client.stop_notify(self._notify_char)
                 await client.disconnect()
         async with self._seq_num_lock:
             self._current_seq_num = 1
@@ -752,28 +771,47 @@ class TuyaBLEDevice:
                     _LOGGER.debug("%s: Connected; RSSI: %s", self.address, self.rssi)
                     self._client = client
                     try:
-                        notify_char = CHARACTERISTIC_NOTIFY
-                        if not self._client.services.get_characteristic(notify_char):
+                        self._notify_char = CHARACTERISTIC_NOTIFY
+                        self._write_char = CHARACTERISTIC_WRITE
+                        if not self._client.services.get_characteristic(self._notify_char):
                             _LOGGER.debug(
                                 "%s: Standard notification characteristic not found, searching...",
                                 self.address,
                             )
+                            self._notify_char = None
+                            self._write_char = None
                             for service in self._client.services:
                                 if service.uuid.startswith("000018"):
                                     continue
+                                notify_char = None
+                                write_char = None
                                 for char in service.characteristics:
                                     if "notify" in char.properties:
                                         notify_char = char.uuid
-                                        _LOGGER.debug(
-                                            "%s: Found notification characteristic: %s",
-                                            self.address,
-                                            notify_char,
-                                        )
-                                        break
-                                if notify_char != CHARACTERISTIC_NOTIFY:
+                                    if (
+                                        "write" in char.properties
+                                        or "write-without-response" in char.properties
+                                    ):
+                                        write_char = char.uuid
+                                if notify_char and write_char:
+                                    self._notify_char = notify_char
+                                    self._write_char = write_char
+                                    _LOGGER.debug(
+                                        "%s: Found suitable service %s with notify %s and write %s",
+                                        self.address,
+                                        service.uuid,
+                                        self._notify_char,
+                                        self._write_char,
+                                    )
                                     break
+
+                        if not self._notify_char:
+                            _LOGGER.error("%s: Could not find suitable characteristics", self.address)
+                            self._client = None
+                            continue
+
                         await self._client.start_notify(
-                            notify_char, self._notification_handler
+                            self._notify_char, self._notification_handler
                         )
                     except:  # [BLEAK_EXCEPTIONS, BleakNotFoundError]:
                         self._client = None
@@ -945,6 +983,16 @@ class TuyaBLEDevice:
 
         cipher = AES.new(key, AES.MODE_CBC, iv)
         encrypted = security_flag + iv + cipher.encrypt(raw)
+
+        _LOGGER.debug(
+            "%s: Built packets for #%s %s: length=%s, protocol_version=%s, security_flag=%s",
+            self.address,
+            seq_num,
+            code.name,
+            len(encrypted),
+            self._protocol_version,
+            security_flag.hex(),
+        )
 
         command = []
         packet_num = 0
@@ -1123,24 +1171,9 @@ class TuyaBLEDevice:
         for packet in packets:
             if self._client:
                 try:
-                    write_char = CHARACTERISTIC_WRITE
-                    if not self._client.services.get_characteristic(write_char):
-                        for service in self._client.services:
-                            if service.uuid.startswith("000018"):
-                                continue
-                            for char in service.characteristics:
-                                if (
-                                    "write" in char.properties
-                                    or "write-without-response" in char.properties
-                                ):
-                                    write_char = char.uuid
-                                    break
-                            if write_char != CHARACTERISTIC_WRITE:
-                                break
-
                     # _LOGGER.debug("%s: Sending packet: %s", self.address, packet.hex())
                     await self._client.write_gatt_char(
-                        write_char,
+                        self._write_char,
                         packet,
                         False,
                     )
@@ -1442,6 +1475,12 @@ class TuyaBLEDevice:
             if packet_num == 0:
                 self._input_buffer = bytearray()
                 self._input_expected_length, pos = self._unpack_int(data, pos)
+                _LOGGER.debug(
+                    "%s: Received packet #0: expected_length=%s, protocol_version=%s",
+                    self.address,
+                    self._input_expected_length,
+                    data[pos] >> 4,
+                )
                 pos += 1
             self._input_buffer += data[pos:]
             self._input_expected_packet_num += 1
