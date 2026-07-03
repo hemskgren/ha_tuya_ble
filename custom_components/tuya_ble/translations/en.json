@@ -50,6 +50,9 @@
             },
             "sensor_fault": {
                 "name": "Sensor fault"
+            },
+            "machine_cover": {
+                "name": "Machine cover"
             }
         },
         "button": {
