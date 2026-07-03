@@ -76,6 +76,7 @@ mapping: dict[str, TuyaBLECategoryBinarySensorMapping] = {
                         entity_category=EntityCategory.DIAGNOSTIC,
                     ),
                 ),
+                # No verifiable problem binary sensor DP for this model yet
             ],
         },
     ),
@@ -212,14 +213,6 @@ mapping: dict[str, TuyaBLECategoryBinarySensorMapping] = {
                         key="low_temp",
                         name="Low Temperature",
                         device_class=BinarySensorDeviceClass.COLD,
-                        entity_category=EntityCategory.DIAGNOSTIC,
-                    ),
-                ),
-                TuyaBLEBinarySensorMapping(
-                    dp_id=102,
-                    description=BinarySensorEntityDescription(
-                        key="machine_problem",
-                        device_class=BinarySensorDeviceClass.PROBLEM,
                         entity_category=EntityCategory.DIAGNOSTIC,
                     ),
                 ),
