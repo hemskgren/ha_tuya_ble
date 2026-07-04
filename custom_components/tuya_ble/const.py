@@ -396,6 +396,8 @@ class DPCode(StrEnum):
     CH4_SENSOR_VALUE = "ch4_sensor_value"
     CHILD_LOCK = "child_lock"  # Child lock
     CISTERN = "cistern"
+    CLEAR_APPOINTMENT = "ClearAppointment"
+    CLEAR_MACHINE_PARTITION = "clearmachinepartition"
     CLEAN_AREA = "clean_area"
     CLEAN_TIME = "clean_time"
     CLICK_SUSTAIN_TIME = "click_sustain_time"
