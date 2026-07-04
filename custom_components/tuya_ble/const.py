@@ -354,6 +354,7 @@ class DPCode(StrEnum):
     https://developer.tuya.com/en/docs/iot/standarddescription?id=K9i5ql6waswzq
     """
 
+    ACTIVITY = "activity"
     AIR_QUALITY = "air_quality"
     ALARM_LOCK = "alarm_lock"
     ALARM_MESSAGE = "alarm_message"
@@ -410,6 +411,7 @@ class DPCode(StrEnum):
     COLOUR_DATA = "colour_data"  # Colored light mode
     COLOUR_DATA_HSV = "colour_data_hsv"  # Colored light mode
     COLOUR_DATA_V2 = "colour_data_v2"  # Colored light mode
+    COMMAND = "command"
     CONCENTRATION_SET = "concentration_set"  # Concentration setting
     CONTROL = "control"
     CONTROL_2 = "control_2"
@@ -461,6 +463,7 @@ class DPCode(StrEnum):
     FILTER = "filter"
     FILTER_LIFE = "filter"
     FILTER_RESET = "filter_reset"  # Filter (cartridge) reset
+    FIRMWARE_VERSION = "firmware_version"
     FLOODLIGHT_LIGHTNESS = "floodlight_lightness"
     FLOODLIGHT_SWITCH = "floodlight_switch"
     FORWARD_ENERGY_TOTAL = "forward_energy_total"
@@ -545,6 +548,7 @@ class DPCode(StrEnum):
     RESET_ROLL_BRUSH = "reset_roll_brush"
     RESIDUAL_ELECTRICITY = "residual_electricity"
     ROLL_BRUSH = "roll_brush"
+    SCHEDULE = "schedule"
     SEEK = "seek"
     SENSITIVITY = "sensitivity"  # Sensitivity
     SENSOR_HUMIDITY = "sensor_humidity"
@@ -645,5 +649,7 @@ class DPCode(StrEnum):
     WINDSPEED = "windspeed"
     WIRELESS_BATTERYLOCK = "wireless_batterylock"
     WIRELESS_ELECTRICITY = "wireless_electricity"
+    WORK_LOG = "work_log"
     WORK_MODE = "work_mode"  # Working mode
     WORK_POWER = "work_power"
+    ZONES = "zones"
