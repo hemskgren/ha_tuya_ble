@@ -372,7 +372,6 @@ class DPCode(StrEnum):
     BASIC_NIGHTVISION = "basic_nightvision"
     BASIC_OSD = "basic_osd"
     BASIC_PRIVATE = "basic_private"
-    BACKWARD_BLADE_STOP = "backwardbladestop"
     BASIC_WDR = "basic_wdr"
     BATTERY_PERCENTAGE = "battery_percentage"  # Battery percentage
     BATTERY_STATE = "battery_state"  # Battery state
@@ -397,8 +396,6 @@ class DPCode(StrEnum):
     CH4_SENSOR_VALUE = "ch4_sensor_value"
     CHILD_LOCK = "child_lock"  # Child lock
     CISTERN = "cistern"
-    CLEAR_APPOINTMENT = "ClearAppointment"
-    CLEAR_MACHINE_PARTITION = "clearmachinepartition"
     CLEAN_AREA = "clean_area"
     CLEAN_TIME = "clean_time"
     CLICK_SUSTAIN_TIME = "click_sustain_time"
@@ -534,6 +531,8 @@ class DPCode(StrEnum):
     QUERY_APPOINTMENT = "QueryAppointment"
     QUERY_PARTITION = "QueryPartition"
     RAIN_TIME_DELAY = "RainTimedelay"
+    CLEAR_APPOINTMENT = "ClearAppointment"
+    CLEAR_MACHINE_PARTITION = "clearmachinepartition"
     OXYGEN = "oxygen"  # Oxygen bar
     RECORD_MODE = "record_mode"
     RECORD_SWITCH = "record_switch"  # Recording switch
