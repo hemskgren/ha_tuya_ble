@@ -756,7 +756,7 @@ class TuyaBLEDevice:
             await asyncio.sleep(0.01)
             if self._client and self._client.is_connected and self._is_paired:
                 return
-            attempts_count = 100
+            attempts_count = 5
             while attempts_count > 0:
                 attempts_count -= 1
                 if attempts_count == 0:
@@ -766,6 +766,9 @@ class TuyaBLEDevice:
                         self.rssi,
                     )
                     raise BleakNotFoundError()
+
+                if attempts_count < 4:
+                    await asyncio.sleep(BLEAK_BACKOFF_TIME)
                 try:
                     async with global_connect_lock:
                         _LOGGER.debug(
@@ -840,18 +843,6 @@ class TuyaBLEDevice:
                                     elif "write" in char.properties or "write-without-response" in char.properties:
                                         write_char = char.uuid
 
-                                if tuya_write and tuya_notify:
-                                    self._notify_char = tuya_notify
-                                    self._write_char = tuya_write
-                                    _LOGGER.debug(
-                                        "%s: Found Tuya standard characteristics in service %s: notify %s and write %s",
-                                        self.address,
-                                        service.uuid,
-                                        self._notify_char,
-                                        self._write_char,
-                                    )
-                                    break
-
                                 if best_char:
                                     self._notify_char = best_char
                                     self._write_char = best_char
@@ -860,6 +851,17 @@ class TuyaBLEDevice:
                                         self.address,
                                         self._notify_char,
                                         service.uuid,
+                                    )
+                                    break
+                                elif tuya_write and tuya_notify:
+                                    self._notify_char = tuya_notify
+                                    self._write_char = tuya_write
+                                    _LOGGER.debug(
+                                        "%s: Found Tuya standard characteristics in service %s: notify %s and write %s",
+                                        self.address,
+                                        service.uuid,
+                                        self._notify_char,
+                                        self._write_char,
                                     )
                                     break
                                 elif notify_char and write_char:
@@ -902,19 +904,14 @@ class TuyaBLEDevice:
                             0,
                             True,
                         ):
+                            _LOGGER.error("%s: Sending device info request failed, disconnecting", self.address)
+                            await client.disconnect()
                             self._client = None
-                            _LOGGER.error(
-                                "%s: Sending device info request failed",
-                                self.address,
-                            )
                             continue
                     except:  # [BLEAK_EXCEPTIONS, BleakNotFoundError]:
+                        _LOGGER.error("%s: Sending device info request failed, disconnecting", self.address, exc_info=True)
+                        await client.disconnect()
                         self._client = None
-                        _LOGGER.error(
-                            "%s: Sending device info request failed",
-                            self.address,
-                            exc_info=True,
-                        )
                         continue
                 else:
                     continue
@@ -928,19 +925,21 @@ class TuyaBLEDevice:
                             0,
                             True,
                         ):
-                            self._client = None
                             _LOGGER.error(
-                                "%s: Sending pairing request failed",
+                                "%s: Sending pairing request failed, disconnecting",
                                 self.address,
                             )
+                            await client.disconnect()
+                            self._client = None
                             continue
                     except:  # [BLEAK_EXCEPTIONS, BleakNotFoundError]:
-                        self._client = None
                         _LOGGER.error(
-                            "%s: Sending pairing request failed",
+                            "%s: Sending pairing request failed, disconnecting",
                             self.address,
                             exc_info=True,
                         )
+                        await client.disconnect()
+                        self._client = None
                         continue
                 else:
                     continue
