@@ -740,6 +740,24 @@ mapping: dict[str, TuyaBLECategoryNumberMapping] = {
             )
         },
     ),
+    "gcj": TuyaBLECategoryNumberMapping(
+        products={
+            "9hdajpiw": [
+                TuyaBLENumberMapping(
+                    dp_id=146,
+                    description=NumberEntityDescription(
+                        key="rain_delay",
+                        icon="mdi:timer-water-variant",
+                        native_max_value=1440,
+                        native_min_value=0,
+                        native_step=1,
+                        native_unit_of_measurement=UnitOfTime.MINUTES,
+                        entity_category=EntityCategory.CONFIG,
+                    ),
+                ),
+            ],
+        },
+    ),
 }
 
 

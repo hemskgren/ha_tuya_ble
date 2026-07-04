@@ -76,7 +76,14 @@ mapping: dict[str, TuyaBLECategoryBinarySensorMapping] = {
                         entity_category=EntityCategory.DIAGNOSTIC,
                     ),
                 ),
-                # No verifiable problem binary sensor DP for this model yet
+                TuyaBLEBinarySensorMapping(
+                    dp_id=102,
+                    description=BinarySensorEntityDescription(
+                        key="machine_problem",
+                        device_class=BinarySensorDeviceClass.PROBLEM,
+                        entity_category=EntityCategory.DIAGNOSTIC,
+                    ),
+                ),
             ],
         },
     ),

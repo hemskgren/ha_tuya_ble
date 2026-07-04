@@ -1150,6 +1150,23 @@ mapping: dict[str, TuyaBLECategorySensorMapping] = {
                         ],
                     ),
                 ),
+                TuyaBLESensorMapping(
+                    dp_id=105,
+                    description=SensorEntityDescription(
+                        key="work_time",
+                        native_unit_of_measurement=UnitOfTime.MINUTES,
+                        device_class=SensorDeviceClass.DURATION,
+                        state_class=SensorStateClass.MEASUREMENT,
+                        entity_category=EntityCategory.DIAGNOSTIC,
+                    ),
+                ),
+                TuyaBLESensorMapping(
+                    dp_id=103,
+                    description=SensorEntityDescription(
+                        key="machine_warning",
+                        entity_category=EntityCategory.DIAGNOSTIC,
+                    ),
+                ),
             ],
         },
     ),
