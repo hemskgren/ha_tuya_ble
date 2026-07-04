@@ -561,6 +561,30 @@ mapping: dict[str, TuyaBLECategorySwitchMapping] = {
                         key="switch_go",
                     ),
                 ),
+                TuyaBLESwitchMapping(
+                    dp_id=104,
+                    description=SwitchEntityDescription(
+                        key="rain_mode",
+                        icon="mdi:water-percent",
+                        entity_category=EntityCategory.CONFIG,
+                    ),
+                ),
+                TuyaBLESwitchMapping(
+                    dp_id=118,
+                    description=SwitchEntityDescription(
+                        key="hedgehog_protection",
+                        icon="mdi:paw",
+                        entity_category=EntityCategory.CONFIG,
+                    ),
+                ),
+                TuyaBLESwitchMapping(
+                    dp_id=120,
+                    description=SwitchEntityDescription(
+                        key="backward_blade_stop",
+                        icon="mdi:shredder",
+                        entity_category=EntityCategory.CONFIG,
+                    ),
+                ),
             ],
         },
     ),

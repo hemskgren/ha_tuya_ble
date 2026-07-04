@@ -435,15 +435,19 @@ class TuyaBLEDevice:
                 self._advertisement_data.service_uuids,
             )
             if self._advertisement_data.service_data:
-                service_data = self._advertisement_data.service_data.get(
-                    SERVICE_UUID_TEMP
-                )
-                if service_data and len(service_data) > 1:
-                    match service_data[0]:
-                        case 0:
-                            raw_product_id = service_data[1:]
-                        # case 1:
-                        #    raw_product_key = service_data[1:]
+                for uuid, data in self._advertisement_data.service_data.items():
+                    if "fd50" in uuid.lower() and len(data) > 1:
+                        self._protocol_version = data[1]
+                        _LOGGER.debug(
+                            "%s: Decoded protocol version %s from service data %s",
+                            self.address,
+                            self._protocol_version,
+                            uuid,
+                        )
+                    if "a201" in uuid.lower() and len(data) > 1:
+                        match data[0]:
+                            case 0:
+                                raw_product_id = data[1:]
 
             if self._advertisement_data.manufacturer_data:
                 manufacturer_data = self._advertisement_data.manufacturer_data.get(
@@ -797,21 +801,34 @@ class TuyaBLEDevice:
                             for service in self._client.services:
                                 if service.uuid.startswith("000018"):
                                     continue
+
+                                best_char = None
                                 notify_char = None
                                 write_char = None
                                 for char in service.characteristics:
                                     if "notify" in char.properties:
+                                        if "write" in char.properties or "write-without-response" in char.properties:
+                                            best_char = char.uuid
+                                            break
                                         notify_char = char.uuid
-                                    if (
-                                        "write" in char.properties
-                                        or "write-without-response" in char.properties
-                                    ):
+                                    elif "write" in char.properties or "write-without-response" in char.properties:
                                         write_char = char.uuid
-                                if notify_char and write_char:
+
+                                if best_char:
+                                    self._notify_char = best_char
+                                    self._write_char = best_char
+                                    _LOGGER.debug(
+                                        "%s: Found best characteristic %s in service %s",
+                                        self.address,
+                                        self._notify_char,
+                                        service.uuid,
+                                    )
+                                    break
+                                elif notify_char and write_char:
                                     self._notify_char = notify_char
                                     self._write_char = write_char
                                     _LOGGER.debug(
-                                        "%s: Found suitable service %s with notify %s and write %s",
+                                        "%s: Found suitable split characteristics in service %s: notify %s and write %s",
                                         self.address,
                                         service.uuid,
                                         self._notify_char,
@@ -1188,7 +1205,14 @@ class TuyaBLEDevice:
         for packet in packets:
             if self._client:
                 try:
-                    # _LOGGER.debug("%s: Sending packet: %s", self.address, packet.hex())
+                    char = self._client.services.get_characteristic(self._write_char)
+                    _LOGGER.debug(
+                        "%s: Writing packet to %s (properties: %s): %s",
+                        self.address,
+                        self._write_char,
+                        char.properties if char else "unknown",
+                        packet.hex()
+                    )
                     await self._client.write_gatt_char(
                         self._write_char,
                         packet,

@@ -103,7 +103,7 @@ The integration works locally, but connection to Tuya BLE device requires device
   + Parkside Performace Smart Battery 8Ah (product_id 'ajrhf1aj')
 
 * Robot Mowers (category_id 'gcj')
-  + Parkside Mower PAMRC 250 A1 (BT) City (product_id '9hdajpiw')
+  + Parkside Robot Mower PAMRC 250 A1 (BT) City (product_id '9hdajpiw')
 
 ## Note that the original hasn't been updated in a long time, still, Support original developer @PlusPlus-ua:
 

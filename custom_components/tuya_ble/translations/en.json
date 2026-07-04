@@ -53,6 +53,9 @@
             },
             "machine_cover": {
                 "name": "Machine cover"
+            },
+            "machine_problem": {
+                "name": "Problem"
             }
         },
         "button": {
@@ -64,6 +67,30 @@
             },
             "bluetooth_unlock": {
                 "name": "Unlock"
+            },
+            "start_mowing": {
+                "name": "Start mowing"
+            },
+            "pause_mowing": {
+                "name": "Pause mowing"
+            },
+            "stop_mowing": {
+                "name": "Stop mowing"
+            },
+            "go_to_charge": {
+                "name": "Go to charge"
+            },
+            "clear_appointment": {
+                "name": "Clear appointment"
+            },
+            "query_appointment": {
+                "name": "Query appointment"
+            },
+            "query_partition": {
+                "name": "Query partition"
+            },
+            "clear_partition": {
+                "name": "Clear partition"
             }
         },
         "number": {
@@ -108,6 +135,9 @@
             },
             "ble_unlock_check": {
                 "name": "Unlock"
+            },
+            "rain_delay": {
+                "name": "Rain delay"
             }
         },
         "select": {
@@ -243,6 +273,12 @@
             "water_intake": {
                 "name": "Water intake"
             },
+            "work_time": {
+                "name": "Work time"
+            },
+            "machine_warning": {
+                "name": "Warning"
+            },
             "wrong_finger": {
                 "name": "Wrong Fingerprint"
             },
@@ -319,6 +355,15 @@
             },
             "window_check": {
                 "name": "Window Check"
+            },
+            "rain_mode": {
+                "name": "Rain mode"
+            },
+            "hedgehog_protection": {
+                "name": "Hedgehog protection"
+            },
+            "backward_blade_stop": {
+                "name": "Backward blade stop"
             }
         },
         "text": {

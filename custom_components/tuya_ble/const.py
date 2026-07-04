@@ -394,11 +394,11 @@ class DPCode(StrEnum):
     CH2O_STATE = "ch2o_state"
     CH2O_VALUE = "ch2o_value"
     CH4_SENSOR_STATE = "ch4_sensor_state"
-    CLEAR_APPOINTMENT = "ClearAppointment"
-    CLEAR_MACHINE_PARTITION = "clearmachinepartition"
     CH4_SENSOR_VALUE = "ch4_sensor_value"
     CHILD_LOCK = "child_lock"  # Child lock
     CISTERN = "cistern"
+    CLEAR_APPOINTMENT = "ClearAppointment"
+    CLEAR_MACHINE_PARTITION = "clearmachinepartition"
     CLEAN_AREA = "clean_area"
     CLEAN_TIME = "clean_time"
     CLICK_SUSTAIN_TIME = "click_sustain_time"
@@ -468,6 +468,7 @@ class DPCode(StrEnum):
     GAS_SENSOR_STATUS = "gas_sensor_status"
     GAS_SENSOR_VALUE = "gas_sensor_value"
     HEDGEHOG_PROTECTION = "HedgehogPROT"
+    BACKWARD_BLADE_STOP = "backwardbladestop"
     HUMIDIFIER = "humidifier"  # Humidification
     HUMIDITY = "humidity"  # Humidity
     HUMIDITY_CURRENT = "humidity_current"  # Current humidity
@@ -490,6 +491,8 @@ class DPCode(StrEnum):
     MACHINE_COVER = "MachineCover"
     MACHINE_RAIN_MODE = "MachineRainMode"
     MACHINE_STATUS = "MachineStatus"
+    MACHINE_WARNING = "MachineWarning"
+    MACHINE_ERROR = "MachineError"
     MACHINE_WORKTIME = "MachineWorktime"
     MANUAL_LOCK = "manual_lock"
     MANUAL_FEED = "manual_feed"
@@ -530,6 +533,7 @@ class DPCode(StrEnum):
     PUMP_RESET = "pump_reset"  # Water pump reset
     QUERY_APPOINTMENT = "QueryAppointment"
     QUERY_PARTITION = "QueryPartition"
+    RAIN_TIME_DELAY = "RainTimedelay"
     OXYGEN = "oxygen"  # Oxygen bar
     RECORD_MODE = "record_mode"
     RECORD_SWITCH = "record_switch"  # Recording switch

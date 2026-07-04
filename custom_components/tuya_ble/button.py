@@ -222,6 +222,76 @@ mapping: dict[str, TuyaBLECategoryButtonMapping] = {
             ),
         }
     ),
+    "gcj": TuyaBLECategoryButtonMapping(
+        products={
+            "9hdajpiw": [
+                TuyaBLEButtonMapping(
+                    dp_id=107,
+                    description=ButtonEntityDescription(
+                        key="start_mowing",
+                        icon="mdi:play-circle-outline",
+                    ),
+                    string_value="StartMowing",
+                ),
+                TuyaBLEButtonMapping(
+                    dp_id=108,
+                    description=ButtonEntityDescription(
+                        key="pause_mowing",
+                        icon="mdi:pause-circle-outline",
+                    ),
+                    string_value="PauseMowing",
+                ),
+                TuyaBLEButtonMapping(
+                    dp_id=109,
+                    description=ButtonEntityDescription(
+                        key="stop_mowing",
+                        icon="mdi:stop-circle-outline",
+                    ),
+                    string_value="StopMowing",
+                ),
+                TuyaBLEButtonMapping(
+                    dp_id=114,
+                    description=ButtonEntityDescription(
+                        key="go_to_charge",
+                        icon="mdi:home-battery",
+                    ),
+                    string_value="GoToCharge",
+                ),
+                TuyaBLEButtonMapping(
+                    dp_id=141,
+                    description=ButtonEntityDescription(
+                        key="clear_appointment",
+                        icon="mdi:calendar-remove",
+                        entity_category=EntityCategory.CONFIG,
+                    ),
+                ),
+                TuyaBLEButtonMapping(
+                    dp_id=142,
+                    description=ButtonEntityDescription(
+                        key="query_appointment",
+                        icon="mdi:calendar-search",
+                        entity_category=EntityCategory.CONFIG,
+                    ),
+                ),
+                TuyaBLEButtonMapping(
+                    dp_id=143,
+                    description=ButtonEntityDescription(
+                        key="query_partition",
+                        icon="mdi:map-search",
+                        entity_category=EntityCategory.CONFIG,
+                    ),
+                ),
+                TuyaBLEButtonMapping(
+                    dp_id=145,
+                    description=ButtonEntityDescription(
+                        key="clear_partition",
+                        icon="mdi:map-marker-remove",
+                        entity_category=EntityCategory.CONFIG,
+                    ),
+                ),
+            ],
+        },
+    ),
 }
 
 
