@@ -349,11 +349,6 @@ class DPType(StrEnum):
 
 
 class DPCode(StrEnum):
-    """Data Point Codes used by Tuya.
-
-    https://developer.tuya.com/en/docs/iot/standarddescription?id=K9i5ql6waswzq
-    """
-
     AIR_QUALITY = "air_quality"
     ALARM_LOCK = "alarm_lock"
     ALARM_MESSAGE = "alarm_message"
