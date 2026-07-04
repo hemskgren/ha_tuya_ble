@@ -819,23 +819,44 @@ class TuyaBLEDevice:
                                 if service.uuid.startswith("000018"):
                                     continue
 
+                                # Tuya standard: 0001 for write, 0002 for notify
+                                tuya_write = None
+                                tuya_notify = None
                                 best_char = None
                                 notify_char = None
                                 write_char = None
                                 for char in service.characteristics:
+                                    uuid_part = char.uuid.split("-")[0].lstrip("0")
+                                    if uuid_part == "1":
+                                        tuya_write = char.uuid
+                                    elif uuid_part == "2":
+                                        tuya_notify = char.uuid
+
                                     if "notify" in char.properties:
                                         if "write" in char.properties or "write-without-response" in char.properties:
                                             best_char = char.uuid
-                                            break
+                                            # If it's a combined char, prefer it but keep looking for Tuya specific ones
                                         notify_char = char.uuid
                                     elif "write" in char.properties or "write-without-response" in char.properties:
                                         write_char = char.uuid
+
+                                if tuya_write and tuya_notify:
+                                    self._notify_char = tuya_notify
+                                    self._write_char = tuya_write
+                                    _LOGGER.debug(
+                                        "%s: Found Tuya standard characteristics in service %s: notify %s and write %s",
+                                        self.address,
+                                        service.uuid,
+                                        self._notify_char,
+                                        self._write_char,
+                                    )
+                                    break
 
                                 if best_char:
                                     self._notify_char = best_char
                                     self._write_char = best_char
                                     _LOGGER.debug(
-                                        "%s: Found best characteristic %s in service %s",
+                                        "%s: Found best combined characteristic %s in service %s",
                                         self.address,
                                         self._notify_char,
                                         service.uuid,
@@ -1231,12 +1252,15 @@ class TuyaBLEDevice:
                         packet.hex()
                     )
                     use_response = False
-                    if (
-                        char
-                        and "write" in char.properties
-                        and "write-without-response" not in char.properties
-                    ):
-                        use_response = True
+                    if char:
+                        if (
+                            "write-without-response" in char.properties
+                            and "write" in char.properties
+                        ):
+                            # Both available, prefer without-response for Tuya
+                            use_response = False
+                        elif "write" in char.properties:
+                            use_response = True
 
                     await self._client.write_gatt_char(
                         self._write_char,
