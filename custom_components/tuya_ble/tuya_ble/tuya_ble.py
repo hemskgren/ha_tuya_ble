@@ -304,6 +304,7 @@ class TuyaBLEDevice:
         self._device_info: TuyaBLEDeviceCredentials | None = None
 
         self._auth_key: bytes | None = None
+        self._full_local_key: bytes | None = None
         self._local_key: bytes | None = None
         self._login_key: bytes | None = None
         self._session_key: bytes | None = None
@@ -323,6 +324,9 @@ class TuyaBLEDevice:
         self._notify_char: str | None = None
         self._write_char: str | None = None
 
+        if self._advertisement_data:
+            self._decode_advertisement_data()
+
     def set_ble_device_and_advertisement_data(
         self, ble_device: BLEDevice, advertisement_data: AdvertisementData
     ) -> None:
@@ -333,8 +337,23 @@ class TuyaBLEDevice:
 
     async def initialize(self) -> None:
         _LOGGER.debug("%s: Initializing", self.address)
+        # Ensure we have the latest version from advertisement data before updating device info
         self._decode_advertisement_data()
         await self._update_device_info()
+
+    def _update_local_key_by_version(self) -> None:
+        if self._full_local_key:
+            if self._protocol_version >= 3:
+                self._local_key = self._full_local_key
+            else:
+                self._local_key = self._full_local_key[:6]
+            self._login_key = hashlib.md5(self._local_key).digest()
+            _LOGGER.debug(
+                "%s: Key update: protocol_version=%s, local_key_length=%s",
+                self.address,
+                self._protocol_version,
+                len(self._local_key),
+            )
 
     def _build_pairing_request(self) -> bytes:
         result = bytearray()
@@ -359,6 +378,8 @@ class TuyaBLEDevice:
 
     async def update(self) -> None:
         _LOGGER.debug("%s: Updating", self.address)
+        # Re-decode in case it was updated by scanner but not yet processed
+        self._decode_advertisement_data()
         await self._send_packet(TuyaBLECode.FUN_SENDER_DEVICE_STATUS, bytes())
 
     async def _update_device_info(self) -> bool:
@@ -368,18 +389,8 @@ class TuyaBLEDevice:
                     self._ble_device.address, False
                 )
             if self._device_info:
-                if self._protocol_version >= 3:
-                    self._local_key = self._device_info.local_key.encode()
-                else:
-                    self._local_key = self._device_info.local_key[:6].encode()
-                self._login_key = hashlib.md5(self._local_key).digest()
-
-                _LOGGER.debug(
-                    "%s: Using protocol version %s, local_key length %s",
-                    self.address,
-                    self._protocol_version,
-                    len(self._local_key),
-                )
+                self._full_local_key = self._device_info.local_key.encode()
+                self._update_local_key_by_version()
 
                 self.append_functions(
                     self._device_info.functions, self._device_info.status_range
@@ -437,6 +448,7 @@ class TuyaBLEDevice:
             if self._advertisement_data.service_data:
                 for uuid, data in self._advertisement_data.service_data.items():
                     if "fd50" in uuid.lower() and len(data) > 1:
+                        old_version = self._protocol_version
                         self._protocol_version = data[1]
                         _LOGGER.debug(
                             "%s: Decoded protocol version %s from service data %s",
@@ -444,6 +456,8 @@ class TuyaBLEDevice:
                             self._protocol_version,
                             uuid,
                         )
+                        if old_version != self._protocol_version:
+                            self._update_local_key_by_version()
                     if "a201" in uuid.lower() and len(data) > 1:
                         match data[0]:
                             case 0:
@@ -455,12 +469,15 @@ class TuyaBLEDevice:
                 )
                 if manufacturer_data and len(manufacturer_data) > 6:
                     self._is_bound = (manufacturer_data[0] & 0x80) != 0
+                    old_version = self._protocol_version
                     self._protocol_version = manufacturer_data[1]
                     _LOGGER.debug(
                         "%s: Decoded protocol version %s from manufacturer data",
                         self.address,
                         self._protocol_version,
                     )
+                    if old_version != self._protocol_version:
+                        self._update_local_key_by_version()
                     raw_uuid = manufacturer_data[6:]
                     if raw_product_id:
                         key = hashlib.md5(raw_product_id).digest()
@@ -1213,10 +1230,18 @@ class TuyaBLEDevice:
                         char.properties if char else "unknown",
                         packet.hex()
                     )
+                    use_response = False
+                    if (
+                        char
+                        and "write" in char.properties
+                        and "write-without-response" not in char.properties
+                    ):
+                        use_response = True
+
                     await self._client.write_gatt_char(
                         self._write_char,
                         packet,
-                        False,
+                        use_response,
                     )
                 except:
                     _LOGGER.error(
@@ -1332,6 +1357,7 @@ class TuyaBLEDevice:
                 self._hardware_version = ("%s.%s") % (data[12], data[13])
 
                 self._protocol_version = data[2]
+                self._update_local_key_by_version()
                 self._flags = data[4]
                 self._is_bound = data[5] != 0
 
@@ -1578,7 +1604,7 @@ class TuyaBLEDevice:
 
     async def _send_datapoints(self, datapoint_ids: list[int]) -> None:
         """Send new values of datapoints to the device."""
-        if self._protocol_version == 3:
+        if self._protocol_version >= 3:
             await self._send_datapoints_v3(datapoint_ids)
         else:
             raise TuyaBLEDeviceError(0)
