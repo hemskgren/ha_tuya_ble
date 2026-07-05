@@ -759,21 +759,9 @@ class TuyaBLEDevice:
             attempts_count = 5
             while attempts_count > 0:
                 attempts_count -= 1
-                if attempts_count == 0:
-                    _LOGGER.error(
-                        "%s: Connecting, all attempts failed; RSSI: %s",
-                        self.address,
-                        self.rssi,
-                    )
-                    raise BleakNotFoundError()
-
-                if attempts_count < 4:
-                    await asyncio.sleep(BLEAK_BACKOFF_TIME)
                 try:
                     async with global_connect_lock:
-                        _LOGGER.debug(
-                            "%s: Connecting; RSSI: %s", self.address, self.rssi
-                        )
+                        _LOGGER.debug("%s: Connecting; RSSI: %s", self.address, self.rssi)
                         client = await establish_connection(
                             BleakClientWithServiceCache,
                             self._ble_device,
@@ -782,181 +770,72 @@ class TuyaBLEDevice:
                             use_services_cache=True,
                             ble_device_callback=lambda: self._ble_device,
                         )
-                except BleakNotFoundError:
-                    _LOGGER.error(
-                        "%s: device not found, not in range, or poor RSSI: %s",
-                        self.address,
-                        self.rssi,
-                        exc_info=True,
-                    )
-                    continue
-                except BLEAK_EXCEPTIONS:
-                    _LOGGER.debug(
-                        "%s: communication failed", self.address, exc_info=True
-                    )
-                    continue
-                except:
-                    _LOGGER.debug("%s: unexpected error", self.address, exc_info=True)
+                except Exception as ex:
+                    _LOGGER.debug("%s: Connection attempt failed: %s", self.address, ex)
+                    if attempts_count > 0:
+                        await asyncio.sleep(BLEAK_BACKOFF_TIME)
                     continue
 
-                if client and client.is_connected:
-                    _LOGGER.debug("%s: Connected; RSSI: %s", self.address, self.rssi)
-                    self._client = client
-                    _LOGGER.debug("%s: Services discovered:", self.address)
-                    for service in self._client.services:
-                        _LOGGER.debug("%s: Service: %s", self.address, service)
+                if not client or not client.is_connected:
+                    continue
+
+                self._client = client
+                _LOGGER.debug("%s: Connected, discovering services", self.address)
+
+                try:
+                    # Discover characteristics
+                    best_char = None
+                    tuya_write = None
+                    tuya_notify = None
+
+                    for service in client.services:
+                        if service.uuid.startswith("000018"):
+                            continue
                         for char in service.characteristics:
-                            _LOGGER.debug("%s: - Characteristic: %s, Properties: %s", self.address, char, char.properties)
+                            uuid_part = char.uuid.split("-")[0].lstrip("0").lower()
+                            if uuid_part == "1":
+                                tuya_write = char.uuid
+                            elif uuid_part == "2":
+                                tuya_notify = char.uuid
 
-                    try:
+                            props = char.properties
+                            if "notify" in props and ("write" in props or "write-without-response" in props):
+                                best_char = char.uuid
+
+                    if best_char:
+                        self._notify_char = best_char
+                        self._write_char = best_char
+                        _LOGGER.debug("%s: Using combined characteristic %s", self.address, best_char)
+                    elif tuya_write and tuya_notify:
+                        self._notify_char = tuya_notify
+                        self._write_char = tuya_write
+                        _LOGGER.debug("%s: Using separate characteristics write=%s, notify=%s", self.address, tuya_write, tuya_notify)
+                    else:
+                        # Fallback to standard constants
                         self._notify_char = CHARACTERISTIC_NOTIFY
                         self._write_char = CHARACTERISTIC_WRITE
-                        if not self._client.services.get_characteristic(self._notify_char):
-                            _LOGGER.debug(
-                                "%s: Standard notification characteristic not found, searching...",
-                                self.address,
-                            )
-                            self._notify_char = None
-                            self._write_char = None
-                            for service in self._client.services:
-                                if service.uuid.startswith("000018"):
-                                    continue
+                        _LOGGER.debug("%s: Falling back to standard characteristics", self.address)
 
-                                # Tuya standard: 0001 for write, 0002 for notify
-                                tuya_write = None
-                                tuya_notify = None
-                                best_char = None
-                                notify_char = None
-                                write_char = None
-                                for char in service.characteristics:
-                                    uuid_part = char.uuid.split("-")[0].lstrip("0")
-                                    if uuid_part == "1":
-                                        tuya_write = char.uuid
-                                    elif uuid_part == "2":
-                                        tuya_notify = char.uuid
+                    await client.start_notify(self._notify_char, self._notification_handler)
 
-                                    if "notify" in char.properties:
-                                        if "write" in char.properties or "write-without-response" in char.properties:
-                                            best_char = char.uuid
-                                            # If it's a combined char, prefer it but keep looking for Tuya specific ones
-                                        notify_char = char.uuid
-                                    elif "write" in char.properties or "write-without-response" in char.properties:
-                                        write_char = char.uuid
+                    _LOGGER.debug("%s: Handshaking...", self.address)
+                    # Handshake must use write-without-response for modern devices even if they advertise write
+                    if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_DEVICE_INFO, bytes(0), 0, True):
+                        if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_PAIR, self._build_pairing_request(), 0, True):
+                            _LOGGER.debug("%s: Handshake complete", self.address)
+                            self._is_paired = True
+                            break
 
-                                if tuya_write and tuya_notify:
-                                    self._notify_char = tuya_notify
-                                    self._write_char = tuya_write
-                                    _LOGGER.debug(
-                                        "%s: Found Tuya standard characteristics in service %s: notify %s and write %s",
-                                        self.address,
-                                        service.uuid,
-                                        self._notify_char,
-                                        self._write_char,
-                                    )
-                                    break
+                    _LOGGER.error("%s: Handshake failed, retrying", self.address)
+                    await client.disconnect()
+                    self._client = None
+                except Exception as ex:
+                    _LOGGER.error("%s: Error during handshake: %s", self.address, ex, exc_info=True)
+                    await client.disconnect()
+                    self._client = None
 
-                                if best_char:
-                                    self._notify_char = best_char
-                                    self._write_char = best_char
-                                    _LOGGER.debug(
-                                        "%s: Found best combined characteristic %s in service %s",
-                                        self.address,
-                                        self._notify_char,
-                                        service.uuid,
-                                    )
-                                    break
-                                elif tuya_write and tuya_notify:
-                                    self._notify_char = tuya_notify
-                                    self._write_char = tuya_write
-                                    _LOGGER.debug(
-                                        "%s: Found Tuya standard characteristics in service %s: notify %s and write %s",
-                                        self.address,
-                                        service.uuid,
-                                        self._notify_char,
-                                        self._write_char,
-                                    )
-                                    break
-                                elif notify_char and write_char:
-                                    self._notify_char = notify_char
-                                    self._write_char = write_char
-                                    _LOGGER.debug(
-                                        "%s: Found suitable split characteristics in service %s: notify %s and write %s",
-                                        self.address,
-                                        service.uuid,
-                                        self._notify_char,
-                                        self._write_char,
-                                    )
-                                    break
-
-                        if not self._notify_char:
-                            _LOGGER.error("%s: Could not find suitable characteristics", self.address)
-                            self._client = None
-                            continue
-
-                        await self._client.start_notify(
-                            self._notify_char, self._notification_handler
-                        )
-                    except:  # [BLEAK_EXCEPTIONS, BleakNotFoundError]:
-                        self._client = None
-                        _LOGGER.error(
-                            "%s: starting notifications failed",
-                            self.address,
-                            exc_info=True,
-                        )
-                        continue
-                else:
-                    continue
-
-                if self._client and self._client.is_connected:
-                    _LOGGER.debug("%s: Sending device info request", self.address)
-                    try:
-                        if not await self._send_packet_while_connected(
-                            TuyaBLECode.FUN_SENDER_DEVICE_INFO,
-                            bytes(0),
-                            0,
-                            True,
-                        ):
-                            _LOGGER.error("%s: Sending device info request failed, disconnecting", self.address)
-                            await client.disconnect()
-                            self._client = None
-                            continue
-                    except:  # [BLEAK_EXCEPTIONS, BleakNotFoundError]:
-                        _LOGGER.error("%s: Sending device info request failed, disconnecting", self.address, exc_info=True)
-                        await client.disconnect()
-                        self._client = None
-                        continue
-                else:
-                    continue
-
-                if self._client and self._client.is_connected:
-                    _LOGGER.debug("%s: Sending pairing request", self.address)
-                    try:
-                        if not await self._send_packet_while_connected(
-                            TuyaBLECode.FUN_SENDER_PAIR,
-                            self._build_pairing_request(),
-                            0,
-                            True,
-                        ):
-                            _LOGGER.error(
-                                "%s: Sending pairing request failed, disconnecting",
-                                self.address,
-                            )
-                            await client.disconnect()
-                            self._client = None
-                            continue
-                    except:  # [BLEAK_EXCEPTIONS, BleakNotFoundError]:
-                        _LOGGER.error(
-                            "%s: Sending pairing request failed, disconnecting",
-                            self.address,
-                            exc_info=True,
-                        )
-                        await client.disconnect()
-                        self._client = None
-                        continue
-                else:
-                    continue
-
-                break
+                if attempts_count > 0:
+                    await asyncio.sleep(BLEAK_BACKOFF_TIME)
 
         if self._client:
             if self._client.is_connected:
@@ -1262,22 +1141,7 @@ class TuyaBLEDevice:
                         char.properties if char else "unknown",
                         packet.hex()
                     )
-                    use_response = False
-                    if char:
-                        if (
-                            "write-without-response" in char.properties
-                            and "write" in char.properties
-                        ):
-                            # Both available, prefer without-response for Tuya
-                            use_response = False
-                        elif "write" in char.properties:
-                            use_response = True
-
-                    await self._client.write_gatt_char(
-                        self._write_char,
-                        packet,
-                        use_response,
-                    )
+                    await self._client.write_gatt_char(self._write_char, packet, False)
                 except:
                     _LOGGER.error(
                         "%s: Error during sending packet",
@@ -1333,6 +1197,49 @@ class TuyaBLEDevice:
             time.ctime(timestamp),
         )
         return (timestamp, end_pos)
+
+    def _parse_datapoints_v4(
+        self, timestamp: float, flags: int, data: bytes, start_pos: int
+    ) -> int:
+        datapoints: list[TuyaBLEDataPoint] = []
+
+        pos = start_pos
+        while len(data) - pos >= 5:
+            id: int = data[pos]
+            pos += 1
+            _type: int = data[pos]
+            if _type > TuyaBLEDataPointType.DT_BITMAP.value:
+                raise TuyaBLEDataFormatError()
+            type: TuyaBLEDataPointType = TuyaBLEDataPointType(_type)
+            pos += 1
+            data_len: int = unpack(">H", data[pos:pos + 2])[0]
+            pos += 2
+            next_pos = pos + data_len
+            if next_pos > len(data):
+                raise TuyaBLEDataLengthError()
+            raw_value = data[pos:next_pos]
+            match type:
+                case TuyaBLEDataPointType.DT_RAW | TuyaBLEDataPointType.DT_BITMAP:
+                    value = raw_value
+                case TuyaBLEDataPointType.DT_BOOL:
+                    value = int.from_bytes(raw_value, "big") != 0
+                case TuyaBLEDataPointType.DT_VALUE | TuyaBLEDataPointType.DT_ENUM:
+                    value = int.from_bytes(raw_value, "big", signed=True)
+                case TuyaBLEDataPointType.DT_STRING:
+                    value = raw_value.decode()
+
+            _LOGGER.debug(
+                "%s: Received datapoint update, id: %s, type: %s: value: %s",
+                self.address,
+                id,
+                type.name,
+                value,
+            )
+            self._datapoints._update_from_device(id, timestamp, flags, type, value)
+            datapoints.append(self._datapoints[id])
+            pos = next_pos
+
+        self._fire_callbacks(datapoints)
 
     def _parse_datapoints_v3(
         self, timestamp: float, flags: int, data: bytes, start_pos: int
@@ -1445,6 +1352,16 @@ class TuyaBLEDevice:
                 )
                 asyncio.create_task(self._send_response(code, data, seq_num))
 
+            case TuyaBLECode.FUN_RECEIVE_DP_V4:
+                self._parse_datapoints_v4(time.time(), 0, data, 0)
+                asyncio.create_task(self._send_response(code, bytes(0), seq_num))
+
+            case TuyaBLECode.FUN_RECEIVE_TIME_DP_V4:
+                timestamp: float
+                pos: int
+                timestamp, pos = self._parse_timestamp(data, 0)
+                self._parse_datapoints_v4(timestamp, 0, data, pos)
+                asyncio.create_task(self._send_response(code, bytes(0), seq_num))
             case TuyaBLECode.FUN_RECEIVE_DP:
                 self._parse_datapoints_v3(time.time(), 0, data, 0)
                 asyncio.create_task(self._send_response(code, bytes(0), seq_num))
@@ -1619,6 +1536,25 @@ class TuyaBLEDevice:
                 self._clean_input()
                 return
 
+    async def _send_datapoints_v4(self, datapoint_ids: list[int]) -> None:
+        """Send new values of datapoints to the device."""
+        data = bytearray()
+        for dp_id in datapoint_ids:
+            dp = self._datapoints[dp_id]
+            value = dp._get_value()
+            _LOGGER.debug(
+                "%s: Sending datapoint update, id: %s, type: %s: value: %s",
+                self.address,
+                dp.id,
+                dp.type.name,
+                dp.value,
+            )
+            # v4 format: dp_id, type, length (2 bytes), value
+            data += pack(">BBH", dp.id, int(dp.type.value), len(value))
+            data += value
+
+        await self._send_packet(TuyaBLECode.FUN_SENDER_DPS_V4, data)
+
     async def _send_datapoints_v3(self, datapoint_ids: list[int]) -> None:
         """Send new values of datapoints to the device."""
         data = bytearray()
@@ -1639,7 +1575,9 @@ class TuyaBLEDevice:
 
     async def _send_datapoints(self, datapoint_ids: list[int]) -> None:
         """Send new values of datapoints to the device."""
-        if self._protocol_version >= 3:
+        if self._protocol_version >= 4:
+            await self._send_datapoints_v4(datapoint_ids)
+        elif self._protocol_version == 3:
             await self._send_datapoints_v3(datapoint_ids)
         else:
             raise TuyaBLEDeviceError(0)
