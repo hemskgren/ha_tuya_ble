@@ -817,16 +817,35 @@ class TuyaBLEDevice:
                         _LOGGER.debug("%s: Falling back to standard characteristics", self.address)
 
                     await client.start_notify(self._notify_char, self._notification_handler)
+                    # Give some time for the device to enable notifications (CCCD write to finish)
+                    await asyncio.sleep(1.0)
 
                     _LOGGER.debug("%s: Handshaking...", self.address)
-                    # Handshake must use write-without-response for modern devices even if they advertise write
+                    # Try traditional handshake first
+                    handshake_success = False
                     if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_DEVICE_INFO, bytes(0), 0, True):
+                        _LOGGER.debug("%s: Device info response received", self.address)
                         if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_PAIR, self._build_pairing_request(), 0, True):
-                            _LOGGER.debug("%s: Handshake complete", self.address)
-                            self._is_paired = True
-                            break
+                            _LOGGER.debug("%s: Pairing response received", self.address)
+                            handshake_success = True
 
-                    _LOGGER.error("%s: Handshake failed, retrying", self.address)
+                    if not handshake_success:
+                        _LOGGER.debug("%s: Handshake stage 1 failed, trying fallback (skipping device info)", self.address)
+                        # Fallback: Some GCJ devices (mowers) require skipping device info
+                        if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_PAIR, self._build_pairing_request(), 0, True):
+                            _LOGGER.debug("%s: Pairing response received (fallback)", self.address)
+                            handshake_success = True
+
+                    if handshake_success:
+                        _LOGGER.debug("%s: Handshake complete", self.address)
+                        self._is_paired = True
+                        break
+
+                    _LOGGER.error(
+                        "%s: Handshake failed (is_connected=%s), retrying",
+                        self.address,
+                        client.is_connected,
+                    )
                     await client.disconnect()
                     self._client = None
                 except Exception as ex:
