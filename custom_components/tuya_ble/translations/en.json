@@ -283,7 +283,22 @@
                 "name": "Work time"
             },
             "activity": {
-                "name": "Activity"
+                "name": "Activity",
+                "state": {
+                    "standby": "Standby",
+                    "mowing": "Mowing",
+                    "charging": "Charging",
+                    "emergency": "Emergency",
+                    "locked": "Locked",
+                    "paused": "Paused",
+                    "park": "Park",
+                    "charging_with_task_suspend": "Charging (Suspended)",
+                    "fixed_mowing": "Fixed Mowing",
+                    "error": "Error",
+                    "updating": "Updating",
+                    "self_test": "Self-test",
+                    "edge": "Edge mowing"
+                }
             },
             "machine_warning": {
                 "name": "Warning"
