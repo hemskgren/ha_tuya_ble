@@ -296,6 +296,7 @@ class TuyaBLEDevice:
         self._is_bound = False
         self._flags = 0
         self._protocol_version = 2
+        self._uuid: str | None = None
 
         self._device_version: str = ""
         self._protocol_version_str: str = ""
@@ -448,15 +449,10 @@ class TuyaBLEDevice:
             if self._advertisement_data.service_data:
                 for uuid, data in self._advertisement_data.service_data.items():
                     if "fd50" in uuid.lower() and len(data) > 1:
-                        old_version = self._protocol_version
-                        self._protocol_version = data[1]
-                        _LOGGER.debug(
-                            "%s: Decoded protocol version %s from service data %s",
-                            self.address,
-                            self._protocol_version,
-                            uuid,
-                        )
-                        if old_version != self._protocol_version:
+                        decoded_version = data[1]
+                        _LOGGER.debug("%s: Decoded protocol version %s from service data %s", self.address, decoded_version, uuid)
+                        if decoded_version > self._protocol_version:
+                            self._protocol_version = decoded_version
                             self._update_local_key_by_version()
                     if "a201" in uuid.lower() and len(data) > 1:
                         match data[0]:
@@ -469,14 +465,10 @@ class TuyaBLEDevice:
                 )
                 if manufacturer_data and len(manufacturer_data) > 6:
                     self._is_bound = (manufacturer_data[0] & 0x80) != 0
-                    old_version = self._protocol_version
-                    self._protocol_version = manufacturer_data[1]
-                    _LOGGER.debug(
-                        "%s: Decoded protocol version %s from manufacturer data",
-                        self.address,
-                        self._protocol_version,
-                    )
-                    if old_version != self._protocol_version:
+                    decoded_version = manufacturer_data[1]
+                    _LOGGER.debug("%s: Decoded protocol version %s from manufacturer data", self.address, decoded_version)
+                    if decoded_version > self._protocol_version:
+                        self._protocol_version = decoded_version
                         self._update_local_key_by_version()
                     raw_uuid = manufacturer_data[6:]
                     if raw_product_id:
@@ -945,6 +937,10 @@ class TuyaBLEDevice:
         iv = secrets.token_bytes(16)
         security_flag: bytes
         if code == TuyaBLECode.FUN_SENDER_DEVICE_INFO:
+            key = self._login_key
+            security_flag = b"\x04"
+        elif code == TuyaBLECode.FUN_SENDER_PAIR and self._session_key is None:
+            # Fallback when FUN_SENDER_DEVICE_INFO is skipped or fails
             key = self._login_key
             security_flag = b"\x04"
         else:

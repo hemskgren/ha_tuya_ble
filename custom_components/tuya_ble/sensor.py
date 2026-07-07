@@ -1132,6 +1132,28 @@ mapping: dict[str, TuyaBLECategorySensorMapping] = {
     "gcj": TuyaBLECategorySensorMapping(
         products={
             "9hdajpiw": [
+                TuyaBLESensorMapping(
+                    dp_id=101,
+                    description=SensorEntityDescription(
+                        key="activity",
+                        device_class=SensorDeviceClass.ENUM,
+                        options=[
+                            "STANDBY",
+                            "MOWING",
+                            "CHARGING",
+                            "EMERGENCY",
+                            "LOCKED",
+                            "PAUSED",
+                            "PARK",
+                            "CHARGING_WITH_TASK_SUSPEND",
+                            "FIXED_MOWING",
+                            "ERROR",
+                            "UPDATA",
+                            "SELF_TEST",
+                            "EDGE",
+                        ],
+                    ),
+                ),
                 TuyaBLEBatteryMapping(dp_id=13),
                 TuyaBLESensorMapping(
                     dp_id=5,

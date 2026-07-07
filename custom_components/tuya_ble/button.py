@@ -226,7 +226,7 @@ mapping: dict[str, TuyaBLECategoryButtonMapping] = {
         products={
             "9hdajpiw": [
                 TuyaBLEButtonMapping(
-                    dp_id=107,
+                    dp_id=115,
                     description=ButtonEntityDescription(
                         key="start_mowing",
                         icon="mdi:play-circle-outline",
@@ -234,28 +234,44 @@ mapping: dict[str, TuyaBLECategoryButtonMapping] = {
                     string_value="StartMowing",
                 ),
                 TuyaBLEButtonMapping(
-                    dp_id=108,
+                    dp_id=115,
                     description=ButtonEntityDescription(
                         key="pause_mowing",
                         icon="mdi:pause-circle-outline",
                     ),
-                    string_value="PauseMowing",
+                    string_value="PauseWork",
                 ),
                 TuyaBLEButtonMapping(
-                    dp_id=109,
+                    dp_id=115,
                     description=ButtonEntityDescription(
                         key="stop_mowing",
                         icon="mdi:stop-circle-outline",
                     ),
-                    string_value="StopMowing",
+                    string_value="CancelWork",
                 ),
                 TuyaBLEButtonMapping(
-                    dp_id=114,
+                    dp_id=115,
                     description=ButtonEntityDescription(
                         key="go_to_charge",
                         icon="mdi:home-battery",
                     ),
-                    string_value="GoToCharge",
+                    string_value="StartReturnStation",
+                ),
+                TuyaBLEButtonMapping(
+                    dp_id=115,
+                    description=ButtonEntityDescription(
+                        key="continue_mowing",
+                        icon="mdi:play-pause",
+                    ),
+                    string_value="ContinueWork",
+                ),
+                TuyaBLEButtonMapping(
+                    dp_id=115,
+                    description=ButtonEntityDescription(
+                        key="edge_mowing",
+                        icon="mdi:border-outside",
+                    ),
+                    string_value="EDGE",
                 ),
                 TuyaBLEButtonMapping(
                     dp_id=141,
