@@ -816,7 +816,9 @@ class TuyaBLEDevice:
 
                     await client.start_notify(self._notify_char, self._notification_handler)
                     # Give some time for the device to enable notifications (CCCD write to finish)
-                    await asyncio.sleep(2.0)
+                    delay = 3.0 if self.category == "gcj" else 2.0
+                    _LOGGER.debug("%s: Notification enabled, waiting %ss for stabilization", self.address, delay)
+                    await asyncio.sleep(delay)
 
                     _LOGGER.debug("%s: Handshaking...", self.address)
                     handshake_success = False
@@ -1177,6 +1179,10 @@ class TuyaBLEDevice:
                     write_with_response = False
                     if char and "write-without-response" not in char.properties:
                         write_with_response = True
+
+                    # GCJ devices (mowers) often fail with 'Write not permitted' if response=True
+                    if self.category == "gcj":
+                        write_with_response = False
 
                     _LOGGER.debug(
                         "%s: Writing packet to %s (properties: %s, response: %s): %s",
