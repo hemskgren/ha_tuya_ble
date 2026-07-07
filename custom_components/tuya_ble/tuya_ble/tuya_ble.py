@@ -936,16 +936,18 @@ class TuyaBLEDevice:
         key: bytes
         iv = secrets.token_bytes(16)
         security_flag: bytes
-        if code == TuyaBLECode.FUN_SENDER_DEVICE_INFO:
-            key = self._login_key
-            security_flag = b"\x04"
-        elif code == TuyaBLECode.FUN_SENDER_PAIR and self._session_key is None:
-            # Fallback when FUN_SENDER_DEVICE_INFO is skipped or fails
+        if self._session_key is None or code == TuyaBLECode.FUN_SENDER_DEVICE_INFO:
             key = self._login_key
             security_flag = b"\x04"
         else:
             key = self._session_key
             security_flag = b"\x05"
+
+        if key is None:
+            _LOGGER.error(
+                "%s: Encryption key is None for code %s", self.address, code.name
+            )
+            raise TuyaBLEDeviceError(0)
 
         raw = bytearray()
         raw += pack(">IIHH", seq_num, response_to, code.value, len(data))
@@ -1313,8 +1315,9 @@ class TuyaBLEDevice:
                 self._protocol_version_str = ("%s.%s") % (data[2], data[3])
                 self._hardware_version = ("%s.%s") % (data[12], data[13])
 
-                self._protocol_version = data[2]
-                self._update_local_key_by_version()
+                if data[2] > 0:
+                    self._protocol_version = data[2]
+                    self._update_local_key_by_version()
                 self._flags = data[4]
                 self._is_bound = data[5] != 0
 
