@@ -91,7 +91,13 @@
             },
             "clear_partition": {
                 "name": "Clear partition"
-            }
+            },
+            "continue_mowing": {
+                "name": "Continue mowing"
+            },
+            "edge_mowing": {
+                "name": "Edge mowing"
+            },
         },
         "number": {
             "brightness": {
@@ -275,6 +281,9 @@
             },
             "work_time": {
                 "name": "Work time"
+            },
+            "activity": {
+                "name": "Activity"
             },
             "machine_warning": {
                 "name": "Warning"
