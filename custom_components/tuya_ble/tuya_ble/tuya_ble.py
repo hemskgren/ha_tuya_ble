@@ -680,6 +680,12 @@ class TuyaBLEDevice:
 
     def _disconnected(self, client: BleakClientWithServiceCache) -> None:
         """Disconnected callback."""
+        # Fail all pending futures to avoid waiting for timeouts when we're disconnected
+        for future in list(self._input_expected_responses.values()):
+            if future and not future.done():
+                future.set_exception(BleakError("Disconnected"))
+        self._input_expected_responses.clear()
+
         was_paired = self._is_paired
         self._is_paired = False
         if self._expected_disconnect:
@@ -810,20 +816,29 @@ class TuyaBLEDevice:
 
                     await client.start_notify(self._notify_char, self._notification_handler)
                     # Give some time for the device to enable notifications (CCCD write to finish)
-                    await asyncio.sleep(1.0)
+                    await asyncio.sleep(2.0)
 
                     _LOGGER.debug("%s: Handshaking...", self.address)
-                    # Try traditional handshake first
                     handshake_success = False
-                    if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_DEVICE_INFO, bytes(0), 0, True):
-                        _LOGGER.debug("%s: Device info response received", self.address)
+
+                    # GCJ devices (mowers) often prefer starting with PAIR or skip DEVICE_INFO
+                    if self.category == "gcj":
+                        _LOGGER.debug("%s: GCJ device detected, trying PAIR first", self.address)
                         if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_PAIR, self._build_pairing_request(), 0, True):
                             _LOGGER.debug("%s: Pairing response received", self.address)
                             handshake_success = True
 
                     if not handshake_success:
+                        # Try traditional handshake
+                        if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_DEVICE_INFO, bytes(0), 0, True):
+                            _LOGGER.debug("%s: Device info response received", self.address)
+                            if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_PAIR, self._build_pairing_request(), 0, True):
+                                _LOGGER.debug("%s: Pairing response received", self.address)
+                                handshake_success = True
+
+                    if not handshake_success and self.category != "gcj":
                         _LOGGER.debug("%s: Handshake stage 1 failed, trying fallback (skipping device info)", self.address)
-                        # Fallback: Some GCJ devices (mowers) require skipping device info
+                        # Fallback: Some devices require skipping device info
                         if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_PAIR, self._build_pairing_request(), 0, True):
                             _LOGGER.debug("%s: Pairing response received (fallback)", self.address)
                             handshake_success = True
@@ -983,7 +998,9 @@ class TuyaBLEDevice:
 
             if packet_num == 0:
                 packet += self._pack_int(length)
-                packet += pack(">B", self._protocol_version << 4)
+                # Cap protocol version at 4 for header as most devices expect 4
+                header_version = min(self._protocol_version, 4)
+                packet += pack(">B", header_version << 4)
 
             data_part = encrypted[
                 pos:pos + GATT_MTU - len(packet)  # fmt: skip
@@ -1062,15 +1079,21 @@ class TuyaBLEDevice:
         await self._int_send_packet_while_connected(packets)
         if future:
             try:
-                await asyncio.wait_for(future, RESPONSE_WAIT_TIMEOUT)
-            except asyncio.TimeoutError:
+                # Use a shorter timeout for handshake-related codes
+                timeout = RESPONSE_WAIT_TIMEOUT
+                if code in [TuyaBLECode.FUN_SENDER_DEVICE_INFO, TuyaBLECode.FUN_SENDER_PAIR]:
+                    timeout = 10.0
+                await asyncio.wait_for(future, timeout)
+            except (asyncio.TimeoutError, BleakError):
                 _LOGGER.error(
-                    "%s: timeout receiving response, RSSI: %s",
+                    "%s: timeout or disconnect while waiting for response to %s, RSSI: %s",
                     self.address,
+                    code.name,
                     self.rssi,
                 )
                 result = False
-            self._input_expected_responses.pop(seq_num, None)
+            finally:
+                self._input_expected_responses.pop(seq_num, None)
 
         return result
 
@@ -1151,30 +1174,34 @@ class TuyaBLEDevice:
             if self._client:
                 try:
                     char = self._client.services.get_characteristic(self._write_char)
+                    write_with_response = False
+                    if char and "write-without-response" not in char.properties:
+                        write_with_response = True
+
                     _LOGGER.debug(
-                        "%s: Writing packet to %s (properties: %s): %s",
+                        "%s: Writing packet to %s (properties: %s, response: %s): %s",
                         self.address,
                         self._write_char,
                         char.properties if char else "unknown",
+                        write_with_response,
                         packet.hex()
                     )
-                    await self._client.write_gatt_char(self._write_char, packet, False)
-                except:
+                    await self._client.write_gatt_char(self._write_char, packet, write_with_response)
+                except Exception as ex:
                     _LOGGER.error(
-                        "%s: Error during sending packet",
+                        "%s: Error during sending packet: %s",
                         self.address,
-                        exc_info=True,
+                        ex,
                     )
                     if self._client and self._client.is_connected:
                         self._disconnected(self._client)
-                    raise BleakError()
+                    raise BleakError() from ex
             else:
                 _LOGGER.error(
                     "%s: Client disconnected during sending packet",
                     self.address,
-                    exc_info=True,
                 )
-                raise BleakError()
+                raise BleakError("Disconnected")
 
     def _get_key(self, security_flag: int) -> bytes:
         if security_flag == 1:
