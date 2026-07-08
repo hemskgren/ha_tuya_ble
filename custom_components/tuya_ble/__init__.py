@@ -39,13 +39,16 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Tuya BLE from a config entry."""
     address: str = entry.data[CONF_ADDRESS]
+    _LOGGER.debug("%s: Setting up entry, looking for device", address)
     ble_device = bluetooth.async_ble_device_from_address(
-        hass, address.upper(), True
+        hass, address.upper(), False
     ) or await get_device(address)
     if not ble_device:
+        _LOGGER.debug("%s: Device not found in bluetooth cache", address)
         raise ConfigEntryNotReady(
             f"Could not find Tuya BLE device with address {address}"
         )
+    _LOGGER.debug("%s: Device found: %s", address, ble_device)
     manager = HASSTuyaBLEDeviceManager(hass, entry.options.copy())
     device = TuyaBLEDevice(manager, ble_device)
     await device.initialize()

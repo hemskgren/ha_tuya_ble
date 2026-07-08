@@ -487,6 +487,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Tuya BLE sensors."""
     data: TuyaBLEData = hass.data[DOMAIN][entry.entry_id]
+    _LOGGER.debug(
+        "%s: Setting up select platform (category: %s, product_id: %s)",
+        data.device.address,
+        data.device.category,
+        data.device.product_id,
+    )
     mappings = get_mapping_by_device(data.device)
     entities: list[TuyaBLESelect] = []
     for mapping in mappings:
@@ -502,4 +508,5 @@ async def async_setup_entry(
                     mapping,
                 )
             )
+    _LOGGER.debug("%s: Adding %s selects", data.device.address, len(entities))
     async_add_entities(entities)
