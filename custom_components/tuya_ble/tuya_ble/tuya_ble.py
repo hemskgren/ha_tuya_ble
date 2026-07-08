@@ -359,10 +359,13 @@ class TuyaBLEDevice:
     def _build_pairing_request(self) -> bytes:
         result = bytearray()
 
-        # GCJ devices often expect a 32-byte pairing request (UUID + local key)
+        # GCJ devices often expect a 44-byte pairing request (UUID + local key + DeviceID padded)
         if self.category == "gcj":
             result += self._device_info.uuid.encode()[:16]
             result += self._local_key[:16]
+            result += self._device_info.device_id.encode()[:16]
+            for _ in range(44 - len(result)):
+                result += b"\x00"
             return bytes(result)
 
         result += self._device_info.uuid.encode()
@@ -846,7 +849,9 @@ class TuyaBLEDevice:
 
                     if not handshake_success and not self._expected_disconnect:
                         # Try traditional handshake
-                        if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_DEVICE_INFO, bytes(0), 0, True):
+                        # Some devices (mowers) expect b"\x00\x00" for DEVICE_INFO
+                        device_info_data = b"\x00\x00" if self.category == "gcj" else bytes(0)
+                        if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_DEVICE_INFO, device_info_data, 0, True):
                             _LOGGER.debug("%s: Device info response received", self.address)
                             if not self._expected_disconnect and await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_PAIR, self._build_pairing_request(), 0, True):
                                 _LOGGER.debug("%s: Pairing response received", self.address)
