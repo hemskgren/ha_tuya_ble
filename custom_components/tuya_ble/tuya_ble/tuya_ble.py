@@ -359,6 +359,12 @@ class TuyaBLEDevice:
     def _build_pairing_request(self) -> bytes:
         result = bytearray()
 
+        # GCJ devices often expect a 32-byte pairing request (UUID + local key)
+        if self.category == "gcj":
+            result += self._device_info.uuid.encode()[:16]
+            result += self._local_key[:16]
+            return bytes(result)
+
         result += self._device_info.uuid.encode()
         result += self._local_key
         result += self._device_info.device_id.encode()
@@ -724,9 +730,9 @@ class TuyaBLEDevice:
 
     async def _execute_disconnect(self) -> None:
         """Execute disconnection."""
+        self._expected_disconnect = True
         async with self._connect_lock:
             client = self._client
-            self._expected_disconnect = True
             self._client = None
             if client and client.is_connected:
                 if self._notify_char:
@@ -739,6 +745,7 @@ class TuyaBLEDevice:
         """Ensure connection to device is established."""
         global global_connect_lock
         if self._expected_disconnect:
+            _LOGGER.debug("%s: Disconnect expected, skipping connection", self.address)
             return
         if self._connect_lock.locked():
             _LOGGER.debug(
@@ -756,6 +763,8 @@ class TuyaBLEDevice:
                 return
             attempts_count = 5
             while attempts_count > 0:
+                if self._expected_disconnect:
+                    break
                 attempts_count -= 1
                 try:
                     async with global_connect_lock:
@@ -818,23 +827,28 @@ class TuyaBLEDevice:
                     # Give some time for the device to enable notifications (CCCD write to finish)
                     delay = 3.0 if self.category == "gcj" else 2.0
                     _LOGGER.debug("%s: Notification enabled, waiting %ss for stabilization", self.address, delay)
-                    await asyncio.sleep(delay)
+
+                    wait_until = time.time() + delay
+                    while time.time() < wait_until:
+                        if self._expected_disconnect:
+                            return
+                        await asyncio.sleep(0.1)
 
                     _LOGGER.debug("%s: Handshaking...", self.address)
                     handshake_success = False
 
                     # GCJ devices (mowers) often prefer starting with PAIR or skip DEVICE_INFO
-                    if self.category == "gcj":
+                    if not self._expected_disconnect and self.category == "gcj":
                         _LOGGER.debug("%s: GCJ device detected, trying PAIR first", self.address)
                         if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_PAIR, self._build_pairing_request(), 0, True):
                             _LOGGER.debug("%s: Pairing response received", self.address)
                             handshake_success = True
 
-                    if not handshake_success:
+                    if not handshake_success and not self._expected_disconnect:
                         # Try traditional handshake
                         if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_DEVICE_INFO, bytes(0), 0, True):
                             _LOGGER.debug("%s: Device info response received", self.address)
-                            if await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_PAIR, self._build_pairing_request(), 0, True):
+                            if not self._expected_disconnect and await self._send_packet_while_connected(TuyaBLECode.FUN_SENDER_PAIR, self._build_pairing_request(), 0, True):
                                 _LOGGER.debug("%s: Pairing response received", self.address)
                                 handshake_success = True
 
@@ -1081,10 +1095,10 @@ class TuyaBLEDevice:
         await self._int_send_packet_while_connected(packets)
         if future:
             try:
-                # Use a shorter timeout for handshake-related codes
+                # Use a specific timeout for handshake-related codes
                 timeout = RESPONSE_WAIT_TIMEOUT
                 if code in [TuyaBLECode.FUN_SENDER_DEVICE_INFO, TuyaBLECode.FUN_SENDER_PAIR]:
-                    timeout = 10.0
+                    timeout = 20.0
                 await asyncio.wait_for(future, timeout)
             except (asyncio.TimeoutError, BleakError):
                 _LOGGER.error(
@@ -1199,8 +1213,6 @@ class TuyaBLEDevice:
                         self.address,
                         ex,
                     )
-                    if self._client and self._client.is_connected:
-                        self._disconnected(self._client)
                     raise BleakError() from ex
             else:
                 _LOGGER.error(
