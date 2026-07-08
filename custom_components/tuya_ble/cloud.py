@@ -117,6 +117,8 @@ class HASSTuyaBLEDeviceManager(AbstaractTuyaBLEDeviceManager):
     @staticmethod
     def _has_credentials(data: dict[Any, Any]) -> bool:
         for key in CONF_TUYA_DEVICE_KEYS:
+            if key in [CONF_PRODUCT_MODEL, CONF_PRODUCT_NAME]:
+                continue
             if data.get(key) is None:
                 return False
         return True

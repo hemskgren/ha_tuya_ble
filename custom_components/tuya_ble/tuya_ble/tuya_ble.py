@@ -825,8 +825,8 @@ class TuyaBLEDevice:
 
                     await client.start_notify(self._notify_char, self._notification_handler)
                     # Give some time for the device to enable notifications (CCCD write to finish)
-                    delay = 3.0 if self.category == "gcj" else 2.0
-                    _LOGGER.debug("%s: Notification enabled, waiting %ss for stabilization", self.address, delay)
+                    delay = 5.0 if self.category == "gcj" else 2.0
+                    _LOGGER.debug("%s: Notification enabled, waiting %ss for stabilization (category: %s)", self.address, delay, self.category)
 
                     wait_until = time.time() + delay
                     while time.time() < wait_until:
